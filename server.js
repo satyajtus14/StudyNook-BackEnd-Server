@@ -2,7 +2,7 @@ const express = require('express');
 const dotenv = require('dotenv');
 dotenv.config();
 const cors = require('cors');
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion,ObjectId } = require('mongodb');
 
 
 const app = express();
@@ -58,21 +58,46 @@ async function run() {
     });
 
   // Example: API for Get a room by ID
+ app.get('/rooms', async (req, res) => {
+      try {
+        const rooms = await roomsCollection.find({}).toArray();
+        res.status(200).json(rooms);
+      } catch (error) {
+        console.error('Error fetching rooms:', error);
+        res.status(500).json({ message: 'Internal server error' });
+      }
+    });
+
+    // GET — Get a single room by ID
     app.get('/rooms/:id', async (req, res) => {
       try {
-        const roomId = req.params.id;
-        const room = await roomsCollection.findOne({ _id: new ObjectId(roomId) });
+        const { id } = req.params;
+        console.log("Received ID:", id);
+        
+    console.log("ID type:", typeof id); // ✅ should be "string"
+
+       // ✅ See ALL rooms and their _id types
+    const allRooms = await roomsCollection.find({}).toArray();
+    console.log("First room _id:", allRooms[0]._id);
+    console.log("First room _id type:", typeof allRooms[0]._id); // ✅ is it string or object?
+    console.log("Do they match?", allRooms[0]._id === id); // ✅ true or false?
+
+
+        // ✅ Your _id is a plain string — no ObjectId conversion needed
+        const room = await roomsCollection.findOne({ _id: new ObjectId(id) });
+        console.log("Found room:", room);
 
         if (!room) {
           return res.status(404).json({ message: 'Room not found' });
         }
-
+        
         res.status(200).json(room);
       } catch (error) {
-        console.error('Error fetching room:', error);
+        console.error('Error fetching room:', error.message);
         res.status(500).json({ message: 'Internal server error' });
       }
-    }); 
+    });
+
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
