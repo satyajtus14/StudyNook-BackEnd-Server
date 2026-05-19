@@ -90,7 +90,7 @@ async function run() {
         if (!room) {
           return res.status(404).json({ message: 'Room not found' });
         }
-        
+
         res.status(200).json(room);
       } catch (error) {
         console.error('Error fetching room:', error.message);
@@ -98,7 +98,47 @@ async function run() {
       }
     });
 
+   // Example: API for Update a room by ID
+   app.put('/rooms/:id', async (req, res) => {
+      try {
+        const { id } = req.params;
+        const updatedRoomData = req.body; // Assuming the updated room data is sent in the request body
 
+        const result = await roomsCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: updatedRoomData }
+        );
+
+        if (result.matchedCount === 0) {
+          return res.status(404).json({ message: 'Room not found' });
+        }
+
+        res.status(200).json({ message: 'Room updated successfully' });
+      } catch (error) {
+        console.error('Error updating room:', error);
+        res.status(500).json({ message: 'Internal server error' });
+      }
+    });
+
+    // Example: API for Delete a room by ID
+    app.delete('/rooms/:id', async (req, res) => {
+      try {
+        const { id } = req.params;
+
+        const result = await roomsCollection.deleteOne({ _id: new ObjectId(id) });
+
+        if (result.deletedCount === 0) {
+          return res.status(404).json({ message: 'Room not found' });
+        }
+
+        res.status(200).json({ message: 'Room deleted successfully' });
+      } catch (error) {
+        console.error('Error deleting room:', error);
+        res.status(500).json({ message: 'Internal server error' });
+      }
+    });
+
+    
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log("You successfully connected to MongoDB!");
