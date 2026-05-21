@@ -28,6 +28,13 @@ async function run() {
     const database = client.db("studynook-db");
     const roomsCollection = database.collection("rooms");
     const bookingsCollection = database.collection("bookings");
+    
+    //Dymamic Section for Available rooms
+     app.get("/available-rooms", async (req, res) => {
+       const result = await roomsCollection.find({}).limit(6).toArray();
+       res.json(result);
+       
+     });
 
     // Example: API for Insert a new room document
     app.post("/rooms", async (req, res) => {
@@ -79,13 +86,13 @@ async function run() {
 
         console.log("ID type:", typeof id); // ✅ should be "string"
 
-        // ✅ See ALL rooms and their _id types
+        // See ALL rooms and their _id types
         const allRooms = await roomsCollection.find({}).toArray();
         console.log("First room _id:", allRooms[0]._id);
         console.log("First room _id type:", typeof allRooms[0]._id); // ✅ is it string or object?
         console.log("Do they match?", allRooms[0]._id === id); // ✅ true or false?
 
-        // ✅ Your _id is a plain string — no ObjectId conversion needed
+        // This _id is a plain string — no ObjectId conversion needed
         const room = await roomsCollection.findOne({ _id: new ObjectId(id) });
         console.log("Found room:", room);
 
@@ -146,8 +153,23 @@ async function run() {
     app.post("/bookings", async (req, res) => {
       try {
         const bookingData = req.body;
+        const { roomId, date, startTime, endTime } = bookingData;
+   
+        //  Check for booking conflicts
+        const conflict = await bookingsCollection.findOne({
+          roomId,
+          date,
+          $and: [
+            { startTime: { $lt: endTime}}, 
+            { endTime: { $gt: startTime } } 
+          ], 
+        }); // overlaps with existing booking
+          
+        if (conflict) {
+          return res.status(409).json({ message: "Room is already booked from ${conflict.startTime} to ${conflict.endTime} for the selected time slot" });
+        }
 
-      // ✅ Add status before saving
+      // Add status before saving
     const bookingWithStatus = {
       ...bookingData,
       status: "confirmed", // ← add this
