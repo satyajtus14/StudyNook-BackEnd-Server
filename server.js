@@ -33,7 +33,7 @@ async function run() {
      app.get("/available-rooms", async (req, res) => {
        const result = await roomsCollection.find({}).limit(6).toArray();
        res.json(result);
-       
+
      });
 
     // Example: API for Insert a new room document
@@ -208,6 +208,28 @@ async function run() {
     });
 
     // Example: API for Cancel a booking by ID
+   app.patch("/booking/:bookingId", async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+
+    const result = await bookingsCollection.updateOne(
+      { _id: new ObjectId(bookingId) },
+      { $set: { status: "cancelled" } },
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    return res.status(200).json({ message: "Booking cancelled successfully" }); // ✅ added return
+
+  } catch (error) {
+    console.error("Error cancelling booking:", error);
+    return res.status(500).json({ message: "Internal server error" }); // ✅ added return
+  }
+});
+
+    //Delete booking by id -permanent delete
     app.delete("/booking/:bookingId", async (req, res) => {
       try {
         const { bookingId } = req.params;
