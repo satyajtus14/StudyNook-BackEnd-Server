@@ -28,6 +28,7 @@ async function run() {
     const database = client.db("studynook-db");
     const roomsCollection = database.collection("rooms");
     const bookingsCollection = database.collection("bookings");
+    const listingsCollection = database.collection("listings");
     
     //Dymamic Section for Available rooms
      app.get("/available-rooms", async (req, res) => {
@@ -229,22 +230,56 @@ async function run() {
   }
 });
 
-    //Delete booking by id -permanent delete
-    app.delete("/booking/:bookingId", async (req, res) => {
-      try {
-        const { bookingId } = req.params;
+// Example: API for Get listings by user ID to show in "My Listings" page
+app.get("/listings", async (req, res) => {
+  try {
+    const { userId } = req.query;
 
-        const result = await bookingsCollection.deleteOne({
-          _id: new ObjectId(bookingId),
+    if (!userId) {
+      return res.status(400).json({ message: "userId is required" });
+    }
+
+    const listings = await listingsCollection.find({ userId }).toArray();
+    res.status(200).json(listings);
+
+  } catch (error) {
+    console.error("Error fetching listings:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+  app.post("/listings", async (req, res) => {
+  try {
+    const listing = req.body;
+
+    if (!listing.userId) {
+      return res.status(400).json({ message: "userId is required" });
+    }
+
+    const result = await listingsCollection.insertOne(listing);
+    res.status(201).json({ message: "Listing created successfully", insertedId: result.insertedId });
+  } catch (error) {
+    console.error("Error creating listing:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+    //Delete listing by id -permanent delete
+    app.delete("/listing/:listingId", async (req, res) => {
+      try {
+        const { listingId } = req.params;
+
+        const result = await listingsCollection.deleteOne({
+          _id: new ObjectId(listingId),
         });
 
         if (result.deletedCount === 0) {
-          return res.status(404).json({ message: "Booking not found" });
+          return res.status(404).json({ message: "Listing not found" });
         }
 
-        res.status(200).json({ message: "Booking cancelled successfully" });
+        res.status(200).json({ message: "Listed Room delete successfully" });
       } catch (error) {
-        console.error("Error cancelling booking:", error);
+        console.error("Error deleting listed room:", error);
         res.status(500).json({ message: "Internal server error" });
       }
     });
