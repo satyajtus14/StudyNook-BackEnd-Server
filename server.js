@@ -166,7 +166,7 @@ async function run() {
         }); // overlaps with existing booking
           
         if (conflict) {
-          return res.status(409).json({ message: "Room is already booked from ${conflict.startTime} to ${conflict.endTime} for the selected time slot" });
+          return res.status(409).json({ message: `Room is already booked from ${conflict.startTime} to ${conflict.endTime} for the selected time slot` });
         }
 
       // Add status before saving
