@@ -30,6 +30,8 @@ async function run() {
     const bookingsCollection = database.collection("bookings");
     const listingsCollection = database.collection("listings");
     
+   
+
     //Dymamic Section for Available rooms
      app.get("/available-rooms", async (req, res) => {
        const result = await roomsCollection.find({}).limit(6).toArray();
@@ -248,7 +250,7 @@ app.get("/listings", async (req, res) => {
   }
 });
 
-  app.post("/listings", async (req, res) => {
+app.post("/listings", async (req, res) => {
   try {
     const listing = req.body;
 
@@ -256,39 +258,117 @@ app.get("/listings", async (req, res) => {
       return res.status(400).json({ message: "userId is required" });
     }
 
-    const result = await listingsCollection.insertOne(listing);
-    res.status(201).json({ message: "Listing created successfully", insertedId: result.insertedId });
+    // 1. Insert into roomsCollection first to get the roomId
+    const roomResult = await roomsCollection.insertOne(listing);
+    const roomId = roomResult.insertedId.toString(); // ✅ get the new room's _id as string
+
+    // 2. Insert into listingsCollection with roomId reference attached
+    const listingWithRoomId = {
+      ...listing,
+      roomId, //  this is the link between the two collections
+    };
+
+    const listingResult = await listingsCollection.insertOne(listingWithRoomId);
+
+    res.status(201).json({
+      message: "Room listed successfully",
+      insertedId: listingResult.insertedId,
+      roomId, // return it to the client if needed
+    });
   } catch (error) {
     console.error("Error creating listing:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 });
 
-    //Delete listing by id -permanent delete
-    app.delete("/listing/:listingId", async (req, res) => {
-      try {
-        const { listingId } = req.params;
+// Example: This — update roomsCollection by room ID
+app.put("/rooms/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updatedRoomData = req.body;
 
-        const result = await listingsCollection.deleteOne({
-          _id: new ObjectId(listingId),
-        });
+    // Update roomsCollection by ObjectId
+    await roomsCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: updatedRoomData }
+    );
 
-        if (result.deletedCount === 0) {
-          return res.status(404).json({ message: "Listing not found" });
-        }
+    // Update listingsCollection — roomId is stored as a plain STRING
+    await listingsCollection.updateOne(
+      { roomId: id }, // string match
+      { $set: updatedRoomData }
+    );
 
-        res.status(200).json({ message: "Listed Room delete successfully" });
-      } catch (error) {
-        console.error("Error deleting listed room:", error);
-        res.status(500).json({ message: "Internal server error" });
-      }
-    });
+    res.status(200).json({ message: "Updated in both collections" });
+  } catch (error) {
+    console.error("Error updating room:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// This — update listingsCollection by listing's own _id
+app.put("/listings/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updatedData = req.body;
+
+    const result = await listingsCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: updatedData }
+    );
+
+    console.log("listingsCollection matchedCount:", result.matchedCount);
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ message: "Listing not found" });
+    }
+
+    res.status(200).json({ message: "Listing updated successfully" });
+  } catch (error) {
+    console.error("Error updating listing:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+    //API for Delete owner's room information by ID for roomsCollection
+    app.delete("/rooms/:id", async (req, res) => {
+  try {
+    const { id } = req.params; // this is roomsCollection _id
+
+    const roomResult = await roomsCollection.deleteOne({ _id: new ObjectId(id) });
+    console.log("roomsCollection deletedCount:", roomResult.deletedCount);
+
+    res.status(200).json({ message: "Deleted from rooms" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+ //API for Delete owner's room information by ID for listingsCollection
+app.delete("/listings/:id", async (req, res) => {
+  try {
+    const { id } = req.params; // this is listingsCollection _id
+
+    const listingResult = await listingsCollection.deleteOne({ _id: new ObjectId(id) });
+    console.log("listingsCollection deletedCount:", listingResult.deletedCount);
+
+    if (listingResult.deletedCount === 0) {
+      return res.status(404).json({ message: "Listing not found" });
+    }
+
+    res.status(200).json({ message: "Deleted from listings" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log("You successfully connected to MongoDB!");
   } catch (error) {
-    // ✅ closes try correctly
+    // closes try correctly
     console.error(" MongoDB connection failed:", error);
   }
 }
