@@ -68,7 +68,7 @@ async function run() {
 
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
 
     const database = client.db("studynook-db");
     const roomsCollection = database.collection("rooms");
@@ -411,7 +411,7 @@ app.delete("/listings/:id",verifyToken, async (req, res) => {
 });
 
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
+    // await client.db("admin").command({ ping: 1 });
     console.log("You successfully connected to MongoDB!");
   } catch (error) {
     // closes try correctly
