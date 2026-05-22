@@ -1,8 +1,12 @@
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const { createRemoteJWKSet, jwtVerify } = require("jose-cjs");  // ✅ add jwtVerify
 const express = require("express");
 const dotenv = require("dotenv");
 dotenv.config();
 const cors = require("cors");
-const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+
+
+
 
 const app = express();
 app.use(cors());
@@ -20,7 +24,48 @@ const client = new MongoClient(URI, {
   },
 });
 
+// ✅ Declare JWKS outside so verifyToken can access it
+let JWKS;
+
+async function initJWKS() {
+  JWKS = await createRemoteJWKSet(
+    new URL(`${process.env.CLIENT_URL}/api/auth/jwks`)
+  );
+  console.log('JWKS initialized ✅');
+}
+
+// ✅ Middleware for authentication
+const verifyToken = async (req, res, next) => {
+  const authHeader = req?.headers.authorization;
+  console.log("Received auth header:", authHeader); // ✅ log the incoming header
+
+  if (!authHeader) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  const token = authHeader?.split(' ')[1];
+  console.log("Extracted token:", token); // ✅ log the extracted token
+
+  if (!token) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  try {
+    
+    const {payload} = await jwtVerify(token, JWKS); // ✅ both are now defined
+    console.log('Token valid. Payload:', payload);
+    next();
+  } catch (error) {
+    console.error('Token verification failed:', error.message); // ✅ log the real error
+    return res.status(403).json({ message: "Forbidden" });
+  }
+};
+
+// ✅ Start both JWKS and DB together
+
 async function run() {
+   await initJWKS(); // initialize JWKS first
+
   try {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
@@ -31,6 +76,9 @@ async function run() {
     const listingsCollection = database.collection("listings");
     
    
+     app.get("/", (req, res) => {
+      res.send("StudyNook Backend Server is running");
+    });
 
     //Dymamic Section for Available rooms
      app.get("/available-rooms", async (req, res) => {
@@ -40,7 +88,7 @@ async function run() {
      });
 
     // Example: API for Insert a new room document
-    app.post("/rooms", async (req, res) => {
+    app.post("/rooms",verifyToken, async (req, res) => {
       try {
         const newRoomData = req.body; // Assuming the room data is sent in the request body
         console.log(newRoomData);
@@ -91,9 +139,7 @@ async function run() {
 
         // See ALL rooms and their _id types
         const allRooms = await roomsCollection.find({}).toArray();
-        console.log("First room _id:", allRooms[0]._id);
-        console.log("First room _id type:", typeof allRooms[0]._id); // ✅ is it string or object?
-        console.log("Do they match?", allRooms[0]._id === id); // ✅ true or false?
+
 
         // This _id is a plain string — no ObjectId conversion needed
         const room = await roomsCollection.findOne({ _id: new ObjectId(id) });
@@ -111,7 +157,7 @@ async function run() {
     });
 
     // Example: API for Update a room by ID
-    app.put("/rooms/:id", async (req, res) => {
+    app.put("/rooms/:id",verifyToken, async (req, res) => {
       try {
         const { id } = req.params;
         const updatedRoomData = req.body; // Assuming the updated room data is sent in the request body
@@ -133,7 +179,7 @@ async function run() {
     });
 
     // Example: API for Delete a room by ID
-    app.delete("/rooms/:id", async (req, res) => {
+    app.delete("/rooms/:id",verifyToken, async (req, res) => {
       try {
         const { id } = req.params;
 
@@ -153,7 +199,7 @@ async function run() {
     });
 
     //Example: API for Booking a room
-    app.post("/bookings", async (req, res) => {
+    app.post("/bookings",verifyToken, async (req, res) => {
       try {
         const bookingData = req.body;
         const { roomId, date, startTime, endTime } = bookingData;
@@ -193,7 +239,7 @@ async function run() {
     });
 
     // Example: API for Get bookings by user ID to show in "My Bookings" page
-    app.get("/bookings", async (req, res) => {
+    app.get("/bookings",verifyToken, async (req, res) => {
       // ← remove /:userId
       try {
         const { userId } = req.query; // ← reads ?userId=xxx
@@ -211,7 +257,7 @@ async function run() {
     });
 
     // Example: API for Cancel a booking by ID
-   app.patch("/booking/:bookingId", async (req, res) => {
+   app.patch("/booking/:bookingId",verifyToken, async (req, res) => {
   try {
     const { bookingId } = req.params;
 
@@ -233,7 +279,7 @@ async function run() {
 });
 
 // Example: API for Get listings by user ID to show in "My Listings" page
-app.get("/listings", async (req, res) => {
+app.get("/listings",verifyToken, async (req, res) => {
   try {
     const { userId } = req.query;
 
@@ -250,7 +296,7 @@ app.get("/listings", async (req, res) => {
   }
 });
 
-app.post("/listings", async (req, res) => {
+app.post("/listings",verifyToken, async (req, res) => {
   try {
     const listing = req.body;
 
@@ -282,7 +328,7 @@ app.post("/listings", async (req, res) => {
 });
 
 // Example: This — update roomsCollection by room ID
-app.put("/rooms/:id", async (req, res) => {
+app.put("/rooms/:id",verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
     const updatedRoomData = req.body;
@@ -307,7 +353,7 @@ app.put("/rooms/:id", async (req, res) => {
 });
 
 // This — update listingsCollection by listing's own _id
-app.put("/listings/:id", async (req, res) => {
+app.put("/listings/:id",verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
     const updatedData = req.body;
@@ -331,7 +377,7 @@ app.put("/listings/:id", async (req, res) => {
 });
 
     //API for Delete owner's room information by ID for roomsCollection
-    app.delete("/rooms/:id", async (req, res) => {
+    app.delete("/rooms/:id",verifyToken, async (req, res) => {
   try {
     const { id } = req.params; // this is roomsCollection _id
 
@@ -346,7 +392,7 @@ app.put("/listings/:id", async (req, res) => {
 });
 
  //API for Delete owner's room information by ID for listingsCollection
-app.delete("/listings/:id", async (req, res) => {
+app.delete("/listings/:id",verifyToken, async (req, res) => {
   try {
     const { id } = req.params; // this is listingsCollection _id
 
